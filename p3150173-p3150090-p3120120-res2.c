@@ -71,6 +71,7 @@ pthread_mutex_t avgWaitTimeLock;
 pthread_mutex_t avgServingTimeLock;
 pthread_mutex_t seatsPlanLock;
 pthread_mutex_t screenLock;
+pthread_mutex_t cashiersLock;
 pthread_cond_t availableOperators;
 
 int main(int argc, char *argv[]) {
@@ -103,6 +104,7 @@ int main(int argc, char *argv[]) {
     check_rc(pthread_mutex_init(&avgServingTimeLock, NULL));
     check_rc(pthread_mutex_init(&seatsPlanLock, NULL));
     check_rc(pthread_mutex_init(&screenLock, NULL));
+    check_rc(pthread_mutex_init(&cashiersLock, NULL));
     check_rc(pthread_cond_init(&availableOperators, NULL));
 
     startTimer();
@@ -125,6 +127,7 @@ int main(int argc, char *argv[]) {
     check_rc(pthread_mutex_destroy(&avgServingTimeLock));
     check_rc(pthread_mutex_destroy(&seatsPlanLock));
     check_rc(pthread_mutex_destroy(&screenLock));
+    check_rc(pthread_mutex_destroy(&cashiersLock));
     check_rc(pthread_cond_destroy(&availableOperators));
 
     printInfo();
