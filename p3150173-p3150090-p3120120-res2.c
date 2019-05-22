@@ -10,6 +10,7 @@ unsigned int profit = 0;
 unsigned int servedCounter = 0;
 unsigned int transactions = 0;
 unsigned int telephonist = N_TEL;
+unsigned int totalSeats = N_SEAT * (N_ZONE_A + N_ZONE_B + N_ZONE_C);
 unsigned int remainingSeats = N_SEAT * (N_ZONE_A + N_ZONE_B + N_ZONE_C);
 unsigned int remainingSeatsZoneA = N_SEAT * N_ZONE_A;
 unsigned int remainingSeatsZoneB = N_SEAT * N_ZONE_B;
@@ -19,7 +20,7 @@ bool *resultPtr;
 
 unsigned int *costPtr;
 
-unsigned int seatsPlan[N_SEAT];
+unsigned int seatsPlan[250];
 unsigned int *seedPtr = &seed;
 unsigned int *profitPtr = &profit;
 unsigned int *servedCounterPtr = &servedCounter;
@@ -60,7 +61,7 @@ unsigned int Cost(unsigned int, char);
 
 unsigned int logTransaction();
 
-void bookSeats(unsigned int, unsigned int);
+void bookSeats(unsigned int, unsigned int, char);
 
 void unbookSeats(unsigned int, unsigned int);
 
@@ -184,7 +185,7 @@ void *customer(void *x) {
 
         if (checkAvailableSeats(seats, zone)) {
 
-            bookSeats(seats, id);
+            bookSeats(seats, id, zone);
 
             if (POS(seats, id)) {
 
@@ -195,7 +196,7 @@ void *customer(void *x) {
 
                 check_rc(pthread_mutex_lock(&seatsPlanLock));
                 printf(", οι θέσεις σας είναι οι: ");
-                for (int i = 0; i < N_SEAT; i++) {
+                for (int i = 0; i < totalSeats; i++) {
                     if (seatsPlan[i] == id) {
                         printf("%03d ", i + 1);
                     }
@@ -289,7 +290,7 @@ unsigned int Cost(unsigned int numOfSeats, char zone) {
             *costPtr = numOfSeats * C_ZONE_C;
             break;
         default:
-            *costPtr = 0;
+            break;
     }
     *profitPtr += *costPtr;
     check_rc(pthread_mutex_unlock(&paymentLock));
@@ -303,14 +304,36 @@ unsigned int logTransaction() {
     return transactionID;
 }
 
-void bookSeats(unsigned int numOfSeats, unsigned int custID) {
+void bookSeats(unsigned int numOfSeats, unsigned int custID, char zone) {
     check_rc(pthread_mutex_lock(&seatsPlanLock));
     int temp = numOfSeats;
-    for (int i = 0; temp > 0 && i < N_SEAT; i++) {
-        if (seatsPlan[i] == 0) {
-            seatsPlan[i] = custID;
-            temp--;
-        }
+    switch (zone) {
+        case 'A':
+            for (int i = 0; temp > 0 && i < N_SEAT * N_ZONE_A; i++) {
+                if (seatsPlan[i] == 0) {
+                    seatsPlan[i] = custID;
+                    temp--;
+                }
+            }
+            break;
+        case 'B':
+            for (int i = N_SEAT * N_ZONE_A; temp > 0 && i < N_SEAT * (N_ZONE_A + N_ZONE_B); i++) {
+                if (seatsPlan[i] == 0) {
+                    seatsPlan[i] = custID;
+                    temp--;
+                }
+            }
+            break;
+        case 'C':
+            for (int i = N_SEAT * (N_ZONE_A + N_ZONE_B); temp > 0 && i < totalSeats; i++) {
+                if (seatsPlan[i] == 0) {
+                    seatsPlan[i] = custID;
+                    temp--;
+                }
+            }
+            break;
+        default:
+            break;
     }
     (*remainingSeatsPtr) -= numOfSeats;
     check_rc(pthread_mutex_unlock(&seatsPlanLock));
@@ -319,7 +342,7 @@ void bookSeats(unsigned int numOfSeats, unsigned int custID) {
 void unbookSeats(unsigned int numOfSeats, unsigned int custID) {
     check_rc(pthread_mutex_lock(&seatsPlanLock));
     int temp = numOfSeats;
-    for (int i = 0; temp > 0 && i < N_SEAT; i++) {
+    for (int i = 0; temp > 0 && i < totalSeats; i++) {
         if (seatsPlan[i] == custID) {
             seatsPlan[i] = 0;
             temp--;
@@ -379,7 +402,7 @@ bool checkAvailableSeats(unsigned int choice, char zone) {
                 *resultPtr = (choice <= (*remainingSeatsZoneCPtr));
                 break;
             default:
-                *resultPtr = 0;
+                break;
         }
     }
     check_rc(pthread_mutex_unlock(&seatsPlanLock));
@@ -415,15 +438,19 @@ void printSeatsPlan() {
     printf("Πλάνο Θέσεων:\n");
     int printCounter = 1;
     printf("| ");
-    // every row has N_SEAT seats
-    for (int i = 0; i < N_SEAT; i++) {
+
+    for (int i = 0; i < totalSeats; i++) {
         if (seatsPlan[i] == 0) {
             printf("Θ %03d: Π     | ", i + 1);
         } else {
             printf("Θ %03d: Π %03d | ", i + 1, seatsPlan[i]);
         }
-        if (printCounter == 4) {
-            printf("\n| ");
+        // changing line after N_SEAT seats
+        if (printCounter == N_SEAT) {
+            printf("\n");
+            if (i != (totalSeats - 1)) {
+                printf("| ");
+            }
             printCounter = 0;
         }
         printCounter += 1;
@@ -443,7 +470,7 @@ void printInfo() {
     printf("Μέσος χρόνος αναμονής: %0.2f seconds\n", (double) *totalWaitTimePtr / customers);
     printf("Μέσος χρόνος εξυπηρέτησης: %0.2f seconds\n", (double) *totalServTimePtr / customers);
     printf("Εξυπηρετήθηκαν: %03d πελάτες\n", *servedCounterPtr);
-    printf("Δεσμευμένες Θέσεις: %d\n", N_SEAT - (*remainingSeatsPtr));
+    printf("Δεσμευμένες Θέσεις: %d\n", totalSeats - (*remainingSeatsPtr));
     printf("Ελεύθερες Θέσεις: %d\n", (*remainingSeatsPtr));
     printf("Συναλλαγές: %d\n", (*transactionsPtr));
     printf("Κέρδη: %d\u20AC\n", (*profitPtr));

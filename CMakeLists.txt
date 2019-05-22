@@ -4,3 +4,5 @@ project(OS_Part_B C)
 set(CMAKE_C_STANDARD 11)
 
 add_executable(OS_Part_B p3150173-p3150090-p3120120-res2.c)
+
+target_link_libraries(OS_Part_B pthread)
