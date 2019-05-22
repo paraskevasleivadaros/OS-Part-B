@@ -336,7 +336,7 @@ bool bookSeats(unsigned int numOfSeats, unsigned int custID, char zone) {
         case 'A':
             for (int j = 0; j < N_ZONE_A && *tempFlagPtr; j++) {
                 // check if there are enough consecutive seats
-                for (int i = N_SEAT * j; i < N_SEAT * (j + 1); i++) {
+                for (int i = N_SEAT * j; i < (N_SEAT * (j + 1)); i++) {
                     if (seatsPlan[i] == 0) {
                         ++(*tempPtr);
                     }
@@ -357,7 +357,7 @@ bool bookSeats(unsigned int numOfSeats, unsigned int custID, char zone) {
         case 'B':
             for (int j = N_ZONE_A; j < (N_ZONE_A + N_ZONE_B) && *tempFlagPtr; j++) {
                 // check if there are enough consecutive seats
-                for (int i = N_SEAT * j; i < N_SEAT * (j + 1); i++) {
+                for (int i = N_SEAT * j; i < (N_SEAT * (j + 1)); i++) {
                     if (seatsPlan[i] == 0) {
                         ++(*tempPtr);
                     }
@@ -378,7 +378,7 @@ bool bookSeats(unsigned int numOfSeats, unsigned int custID, char zone) {
         case 'C':
             for (int j = (N_ZONE_A + N_ZONE_B); j < (N_ZONE_A + N_ZONE_B + N_ZONE_C) && *tempFlagPtr; j++) {
                 // check if there are enough consecutive seats
-                for (int i = N_SEAT * j; i < N_SEAT * (j + 1); i++) {
+                for (int i = N_SEAT * j; i < (N_SEAT * (j + 1)); i++) {
                     if (seatsPlan[i] == 0) {
                         ++(*tempPtr);
                     }
