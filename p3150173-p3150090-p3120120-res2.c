@@ -24,7 +24,7 @@ bool *tempFlagPtr;
 unsigned int *tempPtr;
 unsigned int *costPtr;
 
-unsigned int seatsPlan[250];
+unsigned int seatsPlan[N_SEAT * (N_ZONE_A + N_ZONE_B + N_ZONE_C)];
 unsigned int *seedPtr = &seed;
 unsigned int *profitPtr = &profit;
 unsigned int *servedCounterPtr = &servedCounter;
@@ -356,6 +356,7 @@ bool bookSeats(unsigned int numOfSeats, unsigned int custID, char zone) {
                             --(*tempPtr);
                         }
                     }
+                    *remainingSeatsZoneAPtr -= numOfSeats;
                 }
             }
             break;
@@ -376,6 +377,7 @@ bool bookSeats(unsigned int numOfSeats, unsigned int custID, char zone) {
                             --(*tempPtr);
                         }
                     }
+                    *remainingSeatsZoneBPtr -= numOfSeats;
                 }
             }
             break;
@@ -396,6 +398,7 @@ bool bookSeats(unsigned int numOfSeats, unsigned int custID, char zone) {
                             --(*tempPtr);
                         }
                     }
+                    *remainingSeatsZoneCPtr -= numOfSeats;
                 }
             }
             break;
@@ -403,7 +406,7 @@ bool bookSeats(unsigned int numOfSeats, unsigned int custID, char zone) {
             break;
     }
     bool result = (*tempPtr == 0);
-    (*remainingSeatsPtr) -= numOfSeats;
+    if (result) (*remainingSeatsPtr) -= numOfSeats;
     check_rc(pthread_mutex_unlock(&seatsPlanLock));
     return result;
 }
@@ -504,7 +507,7 @@ void printDuration(unsigned long int minutes, unsigned long int seconds, unsigne
 }
 
 void printSeatsPlan() {
-    printf("Πλάνο Θέσεων:\n");
+    printf("Πλάνο Θέσεων:\n\n");
     printf("Ζώνη A:\n");
     int changeRow = 1;
     int changeZone = 1;
