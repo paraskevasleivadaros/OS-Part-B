@@ -70,7 +70,7 @@ unsigned int logTransaction(char zone);
 
 bool bookSeats(unsigned int, unsigned int, char);
 
-void unbookSeats(unsigned int, unsigned int);
+void unbookSeats(unsigned int, unsigned int, char);
 
 void printSeatsPlan();
 
@@ -80,7 +80,7 @@ void *customer(void *x);
 
 bool checkAvailableSeats(unsigned int, char);
 
-bool POS(unsigned int, unsigned int);
+bool POS(unsigned int, unsigned int, char);
 
 bool checkRemainingSeats();
 
@@ -194,7 +194,7 @@ void *customer(void *x) {
 
             if (bookSeats(seats, id, zone)) {
 
-                if (POS(seats, id)) {
+                if (POS(seats, id, zone)) {
 
                     check_rc(pthread_mutex_lock(&screenLock));
 
@@ -214,12 +214,6 @@ void *customer(void *x) {
                     check_rc(pthread_mutex_unlock(&screenLock));
                 }
 
-            } else {
-                check_rc(pthread_mutex_lock(&screenLock));
-                Clock();
-                printf("Η κράτηση ματαιώθηκε γιατί δεν υπάρχουν αρκετές συνεχόμενες διαθέσιμες θέσεις\n\n");
-                check_rc(pthread_mutex_unlock(&screenLock));
-                unbookSeats(seats, id);
             }
         }
     }
@@ -406,12 +400,19 @@ bool bookSeats(unsigned int numOfSeats, unsigned int custID, char zone) {
             break;
     }
     bool result = (*tempPtr == 0);
-    if (result) (*remainingSeatsPtr) -= numOfSeats;
+    if (result) {
+        (*remainingSeatsPtr) -= numOfSeats;
+    } else {
+        check_rc(pthread_mutex_lock(&screenLock));
+        Clock();
+        printf("Η κράτηση ματαιώθηκε γιατί δεν υπάρχουν αρκετές διαθέσιμες συνεχόμενες θέσεις\n\n");
+        check_rc(pthread_mutex_unlock(&screenLock));
+    }
     check_rc(pthread_mutex_unlock(&seatsPlanLock));
     return result;
 }
 
-void unbookSeats(unsigned int numOfSeats, unsigned int custID) {
+void unbookSeats(unsigned int numOfSeats, unsigned int custID, char zone) {
     check_rc(pthread_mutex_lock(&seatsPlanLock));
     int temp = numOfSeats;
     for (int i = 0; temp > 0 && i < totalSeats; i++) {
@@ -421,6 +422,19 @@ void unbookSeats(unsigned int numOfSeats, unsigned int custID) {
         }
     }
     (*remainingSeatsPtr) += numOfSeats;
+    switch (zone) {
+        case 'A':
+            *remainingSeatsZoneAPtr += numOfSeats;
+            break;
+        case 'B':
+            *remainingSeatsZoneBPtr += numOfSeats;
+            break;
+        case 'C':
+            *remainingSeatsZoneCPtr += numOfSeats;
+            break;
+        default:
+            break;
+    }
     check_rc(pthread_mutex_unlock(&seatsPlanLock));
 }
 
@@ -481,10 +495,10 @@ bool checkAvailableSeats(unsigned int choice, char zone) {
     return *resultPtr;
 }
 
-bool POS(unsigned int numOfSeats, unsigned int custID) {
+bool POS(unsigned int numOfSeats, unsigned int custID, char zone) {
     bool result = (cardRandom(0.0, 1.0) <= P_CARD_SUCCESS);
     if (!result) {
-        unbookSeats(numOfSeats, custID);
+        unbookSeats(numOfSeats, custID, zone);
         check_rc(pthread_mutex_lock(&screenLock));
         Clock();
         printf("Η κράτηση ματαιώθηκε γιατί η συναλλαγή με την πιστωτική κάρτα δεν έγινε αποδεκτή\n\n");
