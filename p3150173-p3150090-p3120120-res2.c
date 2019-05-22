@@ -10,27 +10,38 @@ unsigned int profit = 0;
 unsigned int servedCounter = 0;
 unsigned int transactions = 0;
 unsigned int telephonist = N_TEL;
-unsigned int remainingSeats = N_SEATS;
+unsigned int remainingSeats = N_SEAT * (N_ZONE_A + N_ZONE_B + N_ZONE_C);
+unsigned int remainingSeatsZoneA = N_SEAT * N_ZONE_A;
+unsigned int remainingSeatsZoneB = N_SEAT * N_ZONE_B;
+unsigned int remainingSeatsZoneC = N_SEAT * N_ZONE_C;
 
-unsigned int seatsPlan[N_SEATS];
+bool *resultPtr;
+unsigned int *costPtr;
+
+unsigned int seatsPlan[N_SEAT];
 unsigned int *seedPtr = &seed;
 unsigned int *profitPtr = &profit;
 unsigned int *servedCounterPtr = &servedCounter;
 unsigned int *transactionsPtr = &transactions;
 unsigned int *remainingSeatsPtr = &remainingSeats;
+unsigned int *remainingSeatsZoneAPtr = &remainingSeatsZoneA;
+unsigned int *remainingSeatsZoneBPtr = &remainingSeatsZoneB;
+unsigned int *remainingSeatsZoneCPtr = &remainingSeatsZoneC;
 
 // Calculate time taken by a request
 struct timespec requestStart, requestEnd;
 struct tm start;
 struct tm end;
 
-unsigned long int avgWaitTime;
-unsigned long int avgServTime;
+unsigned long int totalWaitTime;
+unsigned long int totalServTime;
 
-unsigned long int *avgWaitTimePtr = &avgWaitTime;
-unsigned long int *avgServTimePtr = &avgServTime;
+unsigned long int *totalWaitTimePtr = &totalWaitTime;
+unsigned long int *totalServTimePtr = &totalServTime;
 
 unsigned int sleepRandom(int, int);
+
+unsigned int zoneRandom();
 
 unsigned int choiceRandom(int, int);
 
@@ -44,7 +55,7 @@ void Clock();
 
 void check_rc(int);
 
-unsigned int Cost(int);
+unsigned int Cost(unsigned int, unsigned int);
 
 unsigned int logTransaction();
 
@@ -58,7 +69,7 @@ void printInfo();
 
 void *customer(void *x);
 
-bool checkAvailableSeats(unsigned int);
+bool checkAvailableSeats(unsigned int, unsigned int);
 
 bool POS(unsigned int, unsigned int);
 
@@ -154,7 +165,7 @@ void *customer(void *x) {
     clock_gettime(CLOCK_REALTIME, &waitEnd);
 
     check_rc(pthread_mutex_lock(&avgWaitTimeLock));
-    *avgWaitTimePtr = *avgWaitTimePtr + (waitEnd.tv_sec - waitStart.tv_sec);
+    *totalWaitTimePtr = *totalWaitTimePtr + (waitEnd.tv_sec - waitStart.tv_sec);
     check_rc(pthread_mutex_unlock(&avgWaitTimeLock));
 
     --telephonist;
@@ -165,11 +176,12 @@ void *customer(void *x) {
 
     if (checkRemainingSeats()) {
 
+        unsigned int zone = zoneRandom();
         unsigned int seats = choiceRandom(N_SEAT_LOW, N_SEAT_HIGH);
 
         sleep(sleepRandom(T_SEAT_LOW, T_SEAT_HIGH));
 
-        if (checkAvailableSeats(seats)) {
+        if (checkAvailableSeats(seats, zone)) {
 
             bookSeats(seats, id);
 
@@ -182,14 +194,14 @@ void *customer(void *x) {
 
                 check_rc(pthread_mutex_lock(&seatsPlanLock));
                 printf(", οι θέσεις σας είναι οι: ");
-                for (int i = 0; i < N_SEATS; i++) {
+                for (int i = 0; i < N_SEAT; i++) {
                     if (seatsPlan[i] == id) {
                         printf("%03d ", i + 1);
                     }
                 }
                 check_rc(pthread_mutex_unlock(&seatsPlanLock));
 
-                printf("και το κόστος της συναλλαγής είναι %03d\u20AC\n\n", Cost(seats));
+                printf("και το κόστος της συναλλαγής είναι %03d\u20AC\n\n", Cost(seats, zone));
                 check_rc(pthread_mutex_unlock(&screenLock));
             }
         }
@@ -203,7 +215,7 @@ void *customer(void *x) {
     clock_gettime(CLOCK_REALTIME, &servEnd);
 
     check_rc(pthread_mutex_lock(&avgServingTimeLock));
-    *avgServTimePtr = *avgServTimePtr + (servEnd.tv_sec - servStart.tv_sec);
+    *totalServTimePtr = *totalServTimePtr + (servEnd.tv_sec - servStart.tv_sec);
     check_rc(pthread_mutex_unlock(&avgServingTimeLock));
 
     ++telephonist;
@@ -217,6 +229,17 @@ void *customer(void *x) {
 
 unsigned int sleepRandom(int min, int max) {
     return (rand_r(seedPtr) % (max - min + 1)) + min;
+}
+
+unsigned int zoneRandom() {
+    double f = (double) rand_r(seedPtr) / RAND_MAX;
+    if (f <= P_ZONE_A) {
+        return 1;
+    } else if (f <= (P_ZONE_A + P_ZONE_B)) {
+        return 2;
+    } else {
+        return 3;
+    }
 }
 
 unsigned int choiceRandom(int min, int max) {
@@ -250,12 +273,24 @@ void Clock() {
     printf("[%02d:%02d:%02d] ", tm.tm_hour, tm.tm_min, tm.tm_sec);
 }
 
-unsigned int Cost(int numOfSeats) {
+unsigned int Cost(unsigned int numOfSeats, unsigned int zone) {
     check_rc(pthread_mutex_lock(&paymentLock));
-    unsigned int cost = numOfSeats * C_SEAT;
-    *profitPtr += cost;
+    unsigned int cost;
+    costPtr = &cost;
+    switch (zone) {
+        case 1:
+            *costPtr = numOfSeats * C_ZONE_A;
+        case 2:
+            *costPtr = numOfSeats * C_ZONE_B;
+        case 3:
+            *costPtr = numOfSeats * C_ZONE_C;
+
+        default:
+            *costPtr = 0;
+    }
+    *profitPtr += *costPtr;
     check_rc(pthread_mutex_unlock(&paymentLock));
-    return cost;
+    return *costPtr;
 }
 
 unsigned int logTransaction() {
@@ -268,7 +303,7 @@ unsigned int logTransaction() {
 void bookSeats(unsigned int numOfSeats, unsigned int custID) {
     check_rc(pthread_mutex_lock(&seatsPlanLock));
     int temp = numOfSeats;
-    for (int i = 0; temp > 0 && i < N_SEATS; i++) {
+    for (int i = 0; temp > 0 && i < N_SEAT; i++) {
         if (seatsPlan[i] == 0) {
             seatsPlan[i] = custID;
             temp--;
@@ -281,7 +316,7 @@ void bookSeats(unsigned int numOfSeats, unsigned int custID) {
 void unbookSeats(unsigned int numOfSeats, unsigned int custID) {
     check_rc(pthread_mutex_lock(&seatsPlanLock));
     int temp = numOfSeats;
-    for (int i = 0; temp > 0 && i < N_SEATS; i++) {
+    for (int i = 0; temp > 0 && i < N_SEAT; i++) {
         if (seatsPlan[i] == custID) {
             seatsPlan[i] = 0;
             temp--;
@@ -315,21 +350,36 @@ bool checkRemainingSeats() {
     return result;
 }
 
-bool checkAvailableSeats(unsigned int choice) {
+bool checkAvailableSeats(unsigned int choice, unsigned int zone) {
     check_rc(pthread_mutex_lock(&seatsPlanLock));
+
+    // check if there are enough spaces left at the theater
     bool result = (choice <= (*remainingSeatsPtr));
-    if (!result) {
+    resultPtr = &result;
+    if (!*resultPtr) {
         check_rc(pthread_mutex_lock(&screenLock));
         Clock();
         printf("Η κράτηση ματαιώθηκε γιατί δεν υπάρχουν αρκετές διαθέσιμες θέσεις\n\n");
         check_rc(pthread_mutex_unlock(&screenLock));
     }
+
+    // check if there are enough spaces left at the selected zone
+    switch (zone) {
+        case 1:
+            *resultPtr = (choice <= (*remainingSeatsZoneAPtr));
+        case 2:
+            *resultPtr = (choice <= (*remainingSeatsZoneAPtr));
+        case 3:
+            *resultPtr = (choice <= (*remainingSeatsZoneAPtr));
+        default:
+            *resultPtr = 0;
+    }
     check_rc(pthread_mutex_unlock(&seatsPlanLock));
-    return result;
+    return *resultPtr;
 }
 
 bool POS(unsigned int numOfSeats, unsigned int custID) {
-    bool result = (cardRandom(0.0, 1.0) < P_CARD_SUCCESS);
+    bool result = (cardRandom(0.0, 1.0) <= P_CARD_SUCCESS);
     if (!result) {
         unbookSeats(numOfSeats, custID);
         check_rc(pthread_mutex_lock(&screenLock));
@@ -357,11 +407,12 @@ void printSeatsPlan() {
     printf("Πλάνο Θέσεων:\n");
     int printCounter = 1;
     printf("| ");
-    for (int i = 0; i < N_SEATS; i++) {
+    // every row has N_SEAT seats
+    for (int i = 0; i < N_SEAT; i++) {
         if (seatsPlan[i] == 0) {
-            printf("Θέση %03d: Πελάτης     | ", i + 1);
+            printf("Θ %03d: Π     | ", i + 1);
         } else {
-            printf("Θέση %03d: Πελάτης %03d | ", i + 1, seatsPlan[i]);
+            printf("Θ %03d: Π %03d | ", i + 1, seatsPlan[i]);
         }
         if (printCounter == 4) {
             printf("\n| ");
@@ -381,10 +432,10 @@ void printInfo() {
     printf("\n");
     printSeatsPlan();
     printf("\n\n");
-    printf("Μέσος χρόνος αναμονής: %0.2f seconds\n", (double) *avgWaitTimePtr / customers);
-    printf("Μέσος χρόνος εξυπηρέτησης: %0.2f seconds\n", (double) *avgServTimePtr / customers);
+    printf("Μέσος χρόνος αναμονής: %0.2f seconds\n", (double) *totalWaitTimePtr / customers);
+    printf("Μέσος χρόνος εξυπηρέτησης: %0.2f seconds\n", (double) *totalServTimePtr / customers);
     printf("Εξυπηρετήθηκαν: %03d πελάτες\n", *servedCounterPtr);
-    printf("Δεσμευμένες Θέσεις: %d\n", N_SEATS - (*remainingSeatsPtr));
+    printf("Δεσμευμένες Θέσεις: %d\n", N_SEAT - (*remainingSeatsPtr));
     printf("Ελεύθερες Θέσεις: %d\n", (*remainingSeatsPtr));
     printf("Συναλλαγές: %d\n", (*transactionsPtr));
     printf("Κέρδη: %d\u20AC\n", (*profitPtr));
