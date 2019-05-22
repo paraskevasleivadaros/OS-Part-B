@@ -16,6 +16,7 @@ unsigned int remainingSeatsZoneB = N_SEAT * N_ZONE_B;
 unsigned int remainingSeatsZoneC = N_SEAT * N_ZONE_C;
 
 bool *resultPtr;
+
 unsigned int *costPtr;
 
 unsigned int seatsPlan[N_SEAT];
@@ -41,7 +42,7 @@ unsigned long int *totalServTimePtr = &totalServTime;
 
 unsigned int sleepRandom(int, int);
 
-unsigned int zoneRandom();
+char zoneRandom();
 
 unsigned int choiceRandom(int, int);
 
@@ -55,7 +56,7 @@ void Clock();
 
 void check_rc(int);
 
-unsigned int Cost(unsigned int, unsigned int);
+unsigned int Cost(unsigned int, char);
 
 unsigned int logTransaction();
 
@@ -69,7 +70,7 @@ void printInfo();
 
 void *customer(void *x);
 
-bool checkAvailableSeats(unsigned int, unsigned int);
+bool checkAvailableSeats(unsigned int, char);
 
 bool POS(unsigned int, unsigned int);
 
@@ -176,7 +177,7 @@ void *customer(void *x) {
 
     if (checkRemainingSeats()) {
 
-        unsigned int zone = zoneRandom();
+        char zone = zoneRandom();
         unsigned int seats = choiceRandom(N_SEAT_LOW, N_SEAT_HIGH);
 
         sleep(sleepRandom(T_SEAT_LOW, T_SEAT_HIGH));
@@ -231,14 +232,14 @@ unsigned int sleepRandom(int min, int max) {
     return (rand_r(seedPtr) % (max - min + 1)) + min;
 }
 
-unsigned int zoneRandom() {
+char zoneRandom() {
     double f = (double) rand_r(seedPtr) / RAND_MAX;
     if (f <= P_ZONE_A) {
-        return 1;
+        return 'A';
     } else if (f <= (P_ZONE_A + P_ZONE_B)) {
-        return 2;
+        return 'B';
     } else {
-        return 3;
+        return 'C';
     }
 }
 
@@ -273,18 +274,20 @@ void Clock() {
     printf("[%02d:%02d:%02d] ", tm.tm_hour, tm.tm_min, tm.tm_sec);
 }
 
-unsigned int Cost(unsigned int numOfSeats, unsigned int zone) {
+unsigned int Cost(unsigned int numOfSeats, char zone) {
     check_rc(pthread_mutex_lock(&paymentLock));
     unsigned int cost;
     costPtr = &cost;
     switch (zone) {
-        case 1:
+        case 'A':
             *costPtr = numOfSeats * C_ZONE_A;
-        case 2:
+            break;
+        case 'B':
             *costPtr = numOfSeats * C_ZONE_B;
-        case 3:
+            break;
+        case 'C':
             *costPtr = numOfSeats * C_ZONE_C;
-
+            break;
         default:
             *costPtr = 0;
     }
@@ -350,29 +353,34 @@ bool checkRemainingSeats() {
     return result;
 }
 
-bool checkAvailableSeats(unsigned int choice, unsigned int zone) {
+bool checkAvailableSeats(unsigned int choice, char zone) {
     check_rc(pthread_mutex_lock(&seatsPlanLock));
 
     // check if there are enough spaces left at the theater
-    bool result = (choice <= (*remainingSeatsPtr));
+    bool result;
     resultPtr = &result;
+    *resultPtr = (choice <= (*remainingSeatsPtr));
+
     if (!*resultPtr) {
         check_rc(pthread_mutex_lock(&screenLock));
         Clock();
         printf("Η κράτηση ματαιώθηκε γιατί δεν υπάρχουν αρκετές διαθέσιμες θέσεις\n\n");
         check_rc(pthread_mutex_unlock(&screenLock));
-    }
-
-    // check if there are enough spaces left at the selected zone
-    switch (zone) {
-        case 1:
-            *resultPtr = (choice <= (*remainingSeatsZoneAPtr));
-        case 2:
-            *resultPtr = (choice <= (*remainingSeatsZoneAPtr));
-        case 3:
-            *resultPtr = (choice <= (*remainingSeatsZoneAPtr));
-        default:
-            *resultPtr = 0;
+    } else {
+        // check if there are enough spaces left at the selected zone
+        switch (zone) {
+            case 'A':
+                *resultPtr = (choice <= (*remainingSeatsZoneAPtr));
+                break;
+            case 'B':
+                *resultPtr = (choice <= (*remainingSeatsZoneBPtr));
+                break;
+            case 'C':
+                *resultPtr = (choice <= (*remainingSeatsZoneCPtr));
+                break;
+            default:
+                *resultPtr = 0;
+        }
     }
     check_rc(pthread_mutex_unlock(&seatsPlanLock));
     return *resultPtr;
