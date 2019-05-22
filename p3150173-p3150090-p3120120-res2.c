@@ -20,7 +20,8 @@ unsigned int remainingSeatsZoneB = N_SEAT * N_ZONE_B;
 unsigned int remainingSeatsZoneC = N_SEAT * N_ZONE_C;
 
 bool *resultPtr;
-
+bool *tempFlagPtr;
+unsigned int *tempPtr;
 unsigned int *costPtr;
 
 unsigned int seatsPlan[250];
@@ -67,7 +68,7 @@ unsigned int Cost(unsigned int, char);
 
 unsigned int logTransaction(char zone);
 
-void bookSeats(unsigned int, unsigned int, char);
+bool bookSeats(unsigned int, unsigned int, char);
 
 void unbookSeats(unsigned int, unsigned int);
 
@@ -191,26 +192,34 @@ void *customer(void *x) {
 
         if (checkAvailableSeats(seats, zone)) {
 
-            bookSeats(seats, id, zone);
+            if (bookSeats(seats, id, zone)) {
 
-            if (POS(seats, id)) {
+                if (POS(seats, id)) {
 
-                check_rc(pthread_mutex_lock(&screenLock));
+                    check_rc(pthread_mutex_lock(&screenLock));
 
-                Clock();
-                printf("Η κράτηση ολοκληρώθηκε επιτυχώς. Ο αριθμός συναλλαγής είναι %03d", logTransaction(zone));
+                    Clock();
+                    printf("Η κράτηση ολοκληρώθηκε επιτυχώς. Ο αριθμός συναλλαγής είναι %03d", logTransaction(zone));
 
-                check_rc(pthread_mutex_lock(&seatsPlanLock));
-                printf(", οι θέσεις σας είναι οι: ");
-                for (int i = 0; i < totalSeats; i++) {
-                    if (seatsPlan[i] == id) {
-                        printf("%03d ", i + 1);
+                    check_rc(pthread_mutex_lock(&seatsPlanLock));
+                    printf(", οι θέσεις σας είναι οι: ");
+                    for (int i = 0; i < totalSeats; i++) {
+                        if (seatsPlan[i] == id) {
+                            printf("%03d ", i + 1);
+                        }
                     }
-                }
-                check_rc(pthread_mutex_unlock(&seatsPlanLock));
+                    check_rc(pthread_mutex_unlock(&seatsPlanLock));
 
-                printf("και το κόστος της συναλλαγής είναι %03d\u20AC\n\n", Cost(seats, zone));
+                    printf("και το κόστος της συναλλαγής είναι %03d\u20AC\n\n", Cost(seats, zone));
+                    check_rc(pthread_mutex_unlock(&screenLock));
+                }
+
+            } else {
+                check_rc(pthread_mutex_lock(&screenLock));
+                Clock();
+                printf("Η κράτηση ματαιώθηκε γιατί δεν υπάρχουν αρκετές συνεχόμενες διαθέσιμες θέσεις\n\n");
                 check_rc(pthread_mutex_unlock(&screenLock));
+                unbookSeats(seats, id);
             }
         }
     }
@@ -223,7 +232,7 @@ void *customer(void *x) {
     clock_gettime(CLOCK_REALTIME, &servEnd);
 
     check_rc(pthread_mutex_lock(&avgServingTimeLock));
-    *totalServTimePtr = *totalServTimePtr + (servEnd.tv_sec - servStart.tv_sec);
+    *totalServTimePtr += servEnd.tv_sec - servStart.tv_sec;
     check_rc(pthread_mutex_unlock(&avgServingTimeLock));
 
     ++telephonist;
@@ -323,39 +332,80 @@ unsigned int logTransaction(char zone) {
     return transactionID;
 }
 
-void bookSeats(unsigned int numOfSeats, unsigned int custID, char zone) {
+bool bookSeats(unsigned int numOfSeats, unsigned int custID, char zone) {
     check_rc(pthread_mutex_lock(&seatsPlanLock));
-    int temp = numOfSeats;
+    unsigned int temp = 0;
+    tempPtr = &temp;
+    bool tempFlag = true;
+    tempFlagPtr = &tempFlag;
     switch (zone) {
         case 'A':
-            for (int i = 0; temp > 0 && i < N_SEAT * N_ZONE_A; i++) {
-                if (seatsPlan[i] == 0) {
-                    seatsPlan[i] = custID;
-                    temp--;
+            for (int j = 0; j < N_ZONE_A && *tempFlagPtr; j++) {
+                // check if there are enough consecutive seats
+                for (int i = N_SEAT * j; i < N_SEAT * (j + 1); i++) {
+                    if (seatsPlan[i] == 0) {
+                        ++(*tempPtr);
+                    }
+                }
+                if (*tempPtr >= numOfSeats) {
+                    *tempPtr = numOfSeats;
+                    *tempFlagPtr = false;
+                    for (int i = (N_SEAT * j); *tempPtr > 0; i++) {
+                        if (seatsPlan[i] == 0) {
+                            seatsPlan[i] = custID;
+                            --(*tempPtr);
+                        }
+                    }
                 }
             }
             break;
         case 'B':
-            for (int i = N_SEAT * N_ZONE_A; temp > 0 && i < N_SEAT * (N_ZONE_A + N_ZONE_B); i++) {
-                if (seatsPlan[i] == 0) {
-                    seatsPlan[i] = custID;
-                    temp--;
+            for (int j = N_ZONE_A; j < (N_ZONE_A + N_ZONE_B) && *tempFlagPtr; j++) {
+                // check if there are enough consecutive seats
+                for (int i = N_SEAT * j; i < N_SEAT * (j + 1); i++) {
+                    if (seatsPlan[i] == 0) {
+                        ++(*tempPtr);
+                    }
+                }
+                if (*tempPtr >= numOfSeats) {
+                    *tempPtr = numOfSeats;
+                    *tempFlagPtr = false;
+                    for (int i = (N_SEAT * j); *tempPtr > 0; i++) {
+                        if (seatsPlan[i] == 0) {
+                            seatsPlan[i] = custID;
+                            --(*tempPtr);
+                        }
+                    }
                 }
             }
             break;
         case 'C':
-            for (int i = N_SEAT * (N_ZONE_A + N_ZONE_B); temp > 0 && i < totalSeats; i++) {
-                if (seatsPlan[i] == 0) {
-                    seatsPlan[i] = custID;
-                    temp--;
+            for (int j = (N_ZONE_A + N_ZONE_B); j < (N_ZONE_A + N_ZONE_B + N_ZONE_C) && *tempFlagPtr; j++) {
+                // check if there are enough consecutive seats
+                for (int i = N_SEAT * j; i < N_SEAT * (j + 1); i++) {
+                    if (seatsPlan[i] == 0) {
+                        ++(*tempPtr);
+                    }
+                }
+                if (*tempPtr >= numOfSeats) {
+                    *tempPtr = numOfSeats;
+                    *tempFlagPtr = false;
+                    for (int i = (N_SEAT * j); *tempPtr > 0; i++) {
+                        if (seatsPlan[i] == 0) {
+                            seatsPlan[i] = custID;
+                            --(*tempPtr);
+                        }
+                    }
                 }
             }
             break;
         default:
             break;
     }
+    bool result = (*tempPtr == 0);
     (*remainingSeatsPtr) -= numOfSeats;
     check_rc(pthread_mutex_unlock(&seatsPlanLock));
+    return result;
 }
 
 void unbookSeats(unsigned int numOfSeats, unsigned int custID) {
