@@ -9,6 +9,9 @@ unsigned int customers;
 unsigned int profit = 0;
 unsigned int servedCounter = 0;
 unsigned int transactions = 0;
+unsigned int transactionsZoneA = 0;
+unsigned int transactionsZoneB = 0;
+unsigned int transactionsZoneC = 0;
 unsigned int telephonist = N_TEL;
 unsigned int totalSeats = N_SEAT * (N_ZONE_A + N_ZONE_B + N_ZONE_C);
 unsigned int remainingSeats = N_SEAT * (N_ZONE_A + N_ZONE_B + N_ZONE_C);
@@ -25,6 +28,9 @@ unsigned int *seedPtr = &seed;
 unsigned int *profitPtr = &profit;
 unsigned int *servedCounterPtr = &servedCounter;
 unsigned int *transactionsPtr = &transactions;
+unsigned int *transactionsZoneAPtr = &transactionsZoneA;
+unsigned int *transactionsZoneBPtr = &transactionsZoneB;
+unsigned int *transactionsZoneCPtr = &transactionsZoneC;
 unsigned int *remainingSeatsPtr = &remainingSeats;
 unsigned int *remainingSeatsZoneAPtr = &remainingSeatsZoneA;
 unsigned int *remainingSeatsZoneBPtr = &remainingSeatsZoneB;
@@ -59,7 +65,7 @@ void check_rc(int);
 
 unsigned int Cost(unsigned int, char);
 
-unsigned int logTransaction();
+unsigned int logTransaction(char zone);
 
 void bookSeats(unsigned int, unsigned int, char);
 
@@ -192,7 +198,7 @@ void *customer(void *x) {
                 check_rc(pthread_mutex_lock(&screenLock));
 
                 Clock();
-                printf("Η κράτηση ολοκληρώθηκε επιτυχώς. Ο αριθμός συναλλαγής είναι %03d", logTransaction());
+                printf("Η κράτηση ολοκληρώθηκε επιτυχώς. Ο αριθμός συναλλαγής είναι %03d", logTransaction(zone));
 
                 check_rc(pthread_mutex_lock(&seatsPlanLock));
                 printf(", οι θέσεις σας είναι οι: ");
@@ -297,8 +303,21 @@ unsigned int Cost(unsigned int numOfSeats, char zone) {
     return *costPtr;
 }
 
-unsigned int logTransaction() {
+unsigned int logTransaction(char zone) {
     check_rc(pthread_mutex_lock(&transactionLock));
+    switch (zone) {
+        case 'A':
+            ++(*transactionsZoneAPtr);
+            break;
+        case 'B':
+            ++(*transactionsZoneBPtr);
+            break;
+        case 'C':
+            ++(*transactionsZoneCPtr);
+            break;
+        default:
+            break;
+    }
     unsigned int transactionID = ++(*transactionsPtr);
     check_rc(pthread_mutex_unlock(&transactionLock));
     return transactionID;
@@ -436,7 +455,9 @@ void printDuration(unsigned long int minutes, unsigned long int seconds, unsigne
 
 void printSeatsPlan() {
     printf("Πλάνο Θέσεων:\n");
-    int printCounter = 1;
+    printf("Ζώνη A:\n");
+    int changeRow = 1;
+    int changeZone = 1;
     printf("| ");
 
     for (int i = 0; i < totalSeats; i++) {
@@ -446,14 +467,21 @@ void printSeatsPlan() {
             printf("Θ %03d: Π %03d | ", i + 1, seatsPlan[i]);
         }
         // changing line after N_SEAT seats
-        if (printCounter == N_SEAT) {
+        if (changeRow == N_SEAT) {
+            changeZone += 1;
             printf("\n");
             if (i != (totalSeats - 1)) {
+                if (changeZone == N_ZONE_A) {
+                    printf("\nΖώνη B:\n");
+                }
+                if (changeZone == N_ZONE_A + N_ZONE_B) {
+                    printf("\nΖώνη C:\n");
+                }
                 printf("| ");
             }
-            printCounter = 0;
+            changeRow = 0;
         }
-        printCounter += 1;
+        changeRow += 1;
     }
 }
 
@@ -469,10 +497,15 @@ void printInfo() {
     printf("\n\n");
     printf("Μέσος χρόνος αναμονής: %0.2f seconds\n", (double) *totalWaitTimePtr / customers);
     printf("Μέσος χρόνος εξυπηρέτησης: %0.2f seconds\n", (double) *totalServTimePtr / customers);
+    printf("\n");
     printf("Εξυπηρετήθηκαν: %03d πελάτες\n", *servedCounterPtr);
     printf("Δεσμευμένες Θέσεις: %d\n", totalSeats - (*remainingSeatsPtr));
     printf("Ελεύθερες Θέσεις: %d\n", (*remainingSeatsPtr));
-    printf("Συναλλαγές: %d\n", (*transactionsPtr));
+    printf("\n");
+    printf("Συναλλαγές [Σύνολο]: %d\n", (*transactionsPtr));
+    printf("Συναλλαγές [Ζώνη A]: %d\n", (*transactionsZoneAPtr));
+    printf("Συναλλαγές [Ζώνη B]: %d\n", (*transactionsZoneBPtr));
+    printf("Συναλλαγές [Ζώνη C]: %d\n", (*transactionsZoneCPtr));
     printf("Κέρδη: %d\u20AC\n", (*profitPtr));
     printf("\nΈξοδος..\n");
 }
