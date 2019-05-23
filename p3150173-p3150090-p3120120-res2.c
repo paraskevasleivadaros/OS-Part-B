@@ -13,6 +13,7 @@ unsigned int transactionsZoneA = 0;
 unsigned int transactionsZoneB = 0;
 unsigned int transactionsZoneC = 0;
 unsigned int telephonist = N_TEL;
+unsigned int cashiers = N_CASH;
 unsigned int totalSeats = N_SEAT * (N_ZONE_A + N_ZONE_B + N_ZONE_C);
 unsigned int remainingSeats = N_SEAT * (N_ZONE_A + N_ZONE_B + N_ZONE_C);
 unsigned int remainingSeatsZoneA = N_SEAT * N_ZONE_A;
@@ -91,8 +92,9 @@ pthread_mutex_t avgWaitTimeLock;
 pthread_mutex_t avgServingTimeLock;
 pthread_mutex_t seatsPlanLock;
 pthread_mutex_t screenLock;
-pthread_mutex_t availableCashiers;
+pthread_mutex_t cashiersLock;
 pthread_cond_t availableOperators;
+pthread_cond_t availableCashiers;
 
 int main(int argc, char *argv[]) {
 
@@ -124,8 +126,9 @@ int main(int argc, char *argv[]) {
     check_rc(pthread_mutex_init(&avgServingTimeLock, NULL));
     check_rc(pthread_mutex_init(&seatsPlanLock, NULL));
     check_rc(pthread_mutex_init(&screenLock, NULL));
-    check_rc(pthread_mutex_init(&availableCashiers, NULL));
+    check_rc(pthread_mutex_init(&cashiersLock, NULL));
     check_rc(pthread_cond_init(&availableOperators, NULL));
+    check_rc(pthread_cond_init(&availableCashiers, NULL));
 
     startTimer();
 
@@ -147,8 +150,9 @@ int main(int argc, char *argv[]) {
     check_rc(pthread_mutex_destroy(&avgServingTimeLock));
     check_rc(pthread_mutex_destroy(&seatsPlanLock));
     check_rc(pthread_mutex_destroy(&screenLock));
-    check_rc(pthread_mutex_destroy(&availableCashiers));
+    check_rc(pthread_mutex_destroy(&cashiersLock));
     check_rc(pthread_cond_destroy(&availableOperators));
+    check_rc(pthread_cond_destroy(&availableCashiers));
 
     printInfo();
 }
@@ -174,7 +178,7 @@ void *customer(void *x) {
     clock_gettime(CLOCK_REALTIME, &waitEnd);
 
     check_rc(pthread_mutex_lock(&avgWaitTimeLock));
-    *totalWaitTimePtr = *totalWaitTimePtr + (waitEnd.tv_sec - waitStart.tv_sec);
+    *totalWaitTimePtr += (waitEnd.tv_sec - waitStart.tv_sec);
     check_rc(pthread_mutex_unlock(&avgWaitTimeLock));
 
     --telephonist;
@@ -193,6 +197,30 @@ void *customer(void *x) {
         if (checkAvailableSeats(seats, zone)) {
 
             if (bookSeats(seats, id, zone)) {
+
+                struct timespec waitStartCash, waitEndCash, servStartCash, servEndCash;
+
+                check_rc(pthread_mutex_lock(&cashiersLock));
+
+                clock_gettime(CLOCK_REALTIME, &waitStartCash);
+
+                while (cashiers == 0) {
+                    // Customer couldn't find cashier available. Blocked..
+                    check_rc(pthread_cond_wait(&availableCashiers, &cashiersLock));
+                }
+
+                // Customer being served..
+                clock_gettime(CLOCK_REALTIME, &waitEndCash);
+
+                check_rc(pthread_mutex_lock(&avgWaitTimeLock));
+                *totalWaitTimePtr += (waitEndCash.tv_sec - waitStartCash.tv_sec);
+                check_rc(pthread_mutex_unlock(&avgWaitTimeLock));
+
+                --cashiers;
+
+                check_rc(pthread_mutex_unlock(&cashiersLock));
+
+                clock_gettime(CLOCK_REALTIME, &servStartCash);
 
                 if (POS(seats, id, zone)) {
 
@@ -213,6 +241,20 @@ void *customer(void *x) {
                     printf("και το κόστος της συναλλαγής είναι %03d\u20AC\n\n", Cost(seats, zone));
                     check_rc(pthread_mutex_unlock(&screenLock));
                 }
+
+                check_rc(pthread_mutex_lock(&cashiersLock));
+
+                clock_gettime(CLOCK_REALTIME, &servEndCash);
+
+                check_rc(pthread_mutex_lock(&avgServingTimeLock));
+                *totalServTimePtr += servEndCash.tv_sec - servStartCash.tv_sec;
+                check_rc(pthread_mutex_unlock(&avgServingTimeLock));
+
+                ++cashiers;
+
+                check_rc(pthread_cond_broadcast(&availableCashiers));
+
+                check_rc(pthread_mutex_unlock(&cashiersLock));
 
             }
         }
