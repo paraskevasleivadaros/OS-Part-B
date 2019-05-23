@@ -2,8 +2,8 @@
 // Created by paras on 23-Mar-19.
 //
 
-#ifndef P3150173_P3150090_P3120120_RES1_H
-#define P3150173_P3150090_P3120120_RES1_H
+#ifndef P3150173_P3150090_P3120120_RES2_H
+#define P3150173_P3150090_P3120120_RES2_H
 
 #include <stdio.h>
 #include <unistd.h>
