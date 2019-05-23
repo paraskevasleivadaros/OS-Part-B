@@ -162,6 +162,7 @@ void *customer(void *x) {
     unsigned int id = (int *) x;
 
     struct timespec waitStart, waitEnd, servStart, servEnd;
+    struct timespec waitStartCash, waitEndCash, servStartCash, servEndCash;
 
     // Customer calling..
 
@@ -198,8 +199,6 @@ void *customer(void *x) {
 
             if (bookSeats(seats, id, zone)) {
 
-                struct timespec waitStartCash, waitEndCash, servStartCash, servEndCash;
-
                 check_rc(pthread_mutex_lock(&cashiersLock));
 
                 clock_gettime(CLOCK_REALTIME, &waitStartCash);
@@ -221,6 +220,8 @@ void *customer(void *x) {
                 check_rc(pthread_mutex_unlock(&cashiersLock));
 
                 clock_gettime(CLOCK_REALTIME, &servStartCash);
+
+                sleep(sleepRandom(T_CASH_LOW, T_CASH_HIGH));
 
                 if (POS(seats, id, zone)) {
 
@@ -247,7 +248,7 @@ void *customer(void *x) {
                 clock_gettime(CLOCK_REALTIME, &servEndCash);
 
                 check_rc(pthread_mutex_lock(&avgServingTimeLock));
-                *totalServTimePtr += servEndCash.tv_sec - servStartCash.tv_sec;
+                *totalServTimePtr += (servEndCash.tv_sec - servStartCash.tv_sec);
                 check_rc(pthread_mutex_unlock(&avgServingTimeLock));
 
                 ++cashiers;
@@ -268,7 +269,7 @@ void *customer(void *x) {
     clock_gettime(CLOCK_REALTIME, &servEnd);
 
     check_rc(pthread_mutex_lock(&avgServingTimeLock));
-    *totalServTimePtr += servEnd.tv_sec - servStart.tv_sec;
+    *totalServTimePtr += (servEnd.tv_sec - servStart.tv_sec);
     check_rc(pthread_mutex_unlock(&avgServingTimeLock));
 
     ++telephonist;
@@ -290,7 +291,7 @@ char zoneRandom() {
         return 'A';
     } else if (f <= (P_ZONE_A + P_ZONE_B)) {
         return 'B';
-    } else {
+    } else if (f <= (P_ZONE_A + P_ZONE_B + P_ZONE_C)) {
         return 'C';
     }
 }
