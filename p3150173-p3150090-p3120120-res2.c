@@ -508,33 +508,29 @@ bool checkAvailableSeats(unsigned int choice, char zone) {
     // check if there are enough spaces left at the theater
     bool result;
     resultPtr = &result;
-    *resultPtr = (choice <= (*remainingSeatsPtr));
 
+    // check if there are enough spaces left at the selected zone
+    switch (zone) {
+        case 'A':
+            *resultPtr = (choice <= (*remainingSeatsZoneAPtr));
+            break;
+        case 'B':
+            *resultPtr = (choice <= (*remainingSeatsZoneBPtr));
+            break;
+        case 'C':
+            *resultPtr = (choice <= (*remainingSeatsZoneCPtr));
+            break;
+        default:
+            break;
+    }
     if (!*resultPtr) {
         check_rc(pthread_mutex_lock(&screenLock));
         Clock();
-        printf("Η κράτηση ματαιώθηκε γιατί δεν υπάρχουν αρκετές διαθέσιμες θέσεις\n\n");
+        printf("Η κράτηση ματαιώθηκε γιατί δεν υπάρχουν αρκετές συνεχόμενες διαθέσιμες θέσεις\n\n");
         check_rc(pthread_mutex_unlock(&screenLock));
-    } else {
-        // check if there are enough spaces left at the selected zone
-        switch (zone) {
-            case 'A':
-                *resultPtr = (choice <= (*remainingSeatsZoneAPtr));
-                break;
-            case 'B':
-                *resultPtr = (choice <= (*remainingSeatsZoneBPtr));
-                break;
-            case 'C':
-                *resultPtr = (choice <= (*remainingSeatsZoneCPtr));
-                break;
-            default:
-                break;
-        }
-    }
 
-    if (!*resultPtr) {
         check_rc(pthread_mutex_lock(&transactionLock));
-        ++(*transactionsSeatsFailurePtr);
+        ++(*transactionsConsecutiveSeatsFailurePtr);
         check_rc(pthread_mutex_unlock(&transactionLock));
     }
     check_rc(pthread_mutex_unlock(&seatsPlanLock));
