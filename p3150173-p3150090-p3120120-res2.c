@@ -600,7 +600,7 @@ void printSeatsPlan() {
 }
 
 void printInfo() {
-    unsigned long int totalSeconds = requestEnd.tv_sec - requestStart.tv_sec;
+    unsigned long int totalSeconds = (requestEnd.tv_sec - requestStart.tv_sec);
     unsigned long int minutes = totalSeconds / 60;
     unsigned long int seconds = totalSeconds % 60;
     printf("Έναρξη: [%02d:%02d:%02d] - ", start.tm_hour, start.tm_min, start.tm_sec);
