@@ -609,8 +609,8 @@ void printInfo() {
     printf("\n");
     printSeatsPlan();
     printf("\n\n");
-    printf("Μέσος χρόνος αναμονής: %0.2f seconds\n", (double) *totalWaitTimePtr / customers);
-    printf("Μέσος χρόνος εξυπηρέτησης: %0.2f seconds\n", (double) *totalServTimePtr / customers);
+    printf("Μέσος χρόνος αναμονής: %.2lu seconds\n", *totalWaitTimePtr / customers);
+    printf("Μέσος χρόνος εξυπηρέτησης: %.2lu seconds\n", *totalServTimePtr / customers);
     printf("\n");
     printf("Εξυπηρετήθηκαν: %03d πελάτες\n", *servedCounterPtr);
     printf("Δεσμευμένες Θέσεις: %d\n", totalSeats - (*remainingSeatsPtr));
