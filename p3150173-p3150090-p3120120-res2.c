@@ -613,9 +613,12 @@ void printInfo() {
     printf("Ελεύθερες Θέσεις: %d\n", (*remainingSeatsPtr));
     printf("\n");
     printf("Συναλλαγές [Σύνολο]: %d\n", (*transactionsPtr));
-    printf("Συναλλαγές [Ζώνη A]: %d\n", (*transactionsZoneAPtr));
-    printf("Συναλλαγές [Ζώνη B]: %d\n", (*transactionsZoneBPtr));
-    printf("Συναλλαγές [Ζώνη C]: %d\n", (*transactionsZoneCPtr));
+    printf("Συναλλαγές [Ζώνη A]: %d%% (%d)\n", (((*transactionsZoneAPtr * 100) / (*transactionsPtr))),
+           *transactionsZoneAPtr);
+    printf("Συναλλαγές [Ζώνη B]: %d%% (%d)\n", (((*transactionsZoneBPtr * 100) / (*transactionsPtr))),
+           *transactionsZoneBPtr);
+    printf("Συναλλαγές [Ζώνη C]: %d%% (%d)\n", (((*transactionsZoneCPtr * 100) / (*transactionsPtr))),
+           *transactionsZoneCPtr);
     printf("Κέρδη: %d\u20AC\n", (*profitPtr));
     printf("\nΈξοδος..\n");
 }
