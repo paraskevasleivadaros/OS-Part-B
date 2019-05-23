@@ -8,10 +8,10 @@ unsigned int seed;
 unsigned int customers;
 unsigned int profit = 0;
 unsigned int servedCounter = 0;
-unsigned int transactions = 0;
-unsigned int transactionsZoneA = 0;
-unsigned int transactionsZoneB = 0;
-unsigned int transactionsZoneC = 0;
+unsigned int transactionsSuccess = 0;
+unsigned int transactionsCardFailure = 0;
+unsigned int transactionsConsecutiveSeatsFailure = 0;
+unsigned int transactionsSeatsFailure = 0;
 unsigned int telephonist = N_TEL;
 unsigned int cashiers = N_CASH;
 unsigned int totalSeats = N_SEAT * (N_ZONE_A + N_ZONE_B + N_ZONE_C);
@@ -29,10 +29,10 @@ unsigned int seatsPlan[N_SEAT * (N_ZONE_A + N_ZONE_B + N_ZONE_C)];
 unsigned int *seedPtr = &seed;
 unsigned int *profitPtr = &profit;
 unsigned int *servedCounterPtr = &servedCounter;
-unsigned int *transactionsPtr = &transactions;
-unsigned int *transactionsZoneAPtr = &transactionsZoneA;
-unsigned int *transactionsZoneBPtr = &transactionsZoneB;
-unsigned int *transactionsZoneCPtr = &transactionsZoneC;
+unsigned int *transactionsSuccessPtr = &transactionsSuccess;
+unsigned int *transactionsCardFailurePtr = &transactionsCardFailure;
+unsigned int *transactionsConsecutiveSeatsFailurePtr = &transactionsConsecutiveSeatsFailure;
+unsigned int *transactionsSeatsFailurePtr = &transactionsSeatsFailure;
 unsigned int *remainingSeatsPtr = &remainingSeats;
 unsigned int *remainingSeatsZoneAPtr = &remainingSeatsZoneA;
 unsigned int *remainingSeatsZoneBPtr = &remainingSeatsZoneB;
@@ -67,7 +67,7 @@ void check_rc(int);
 
 unsigned int Cost(unsigned int, char);
 
-unsigned int logTransaction(char zone);
+unsigned int logTransaction();
 
 bool bookSeats(unsigned int, unsigned int, char);
 
@@ -228,7 +228,7 @@ void *customer(void *x) {
                     check_rc(pthread_mutex_lock(&screenLock));
 
                     Clock();
-                    printf("Η κράτηση ολοκληρώθηκε επιτυχώς. Ο αριθμός συναλλαγής είναι %03d", logTransaction(zone));
+                    printf("Η κράτηση ολοκληρώθηκε επιτυχώς. Ο αριθμός συναλλαγής είναι %03d", logTransaction());
 
                     check_rc(pthread_mutex_lock(&seatsPlanLock));
                     printf(", οι θέσεις σας είναι οι: ");
@@ -349,22 +349,9 @@ unsigned int Cost(unsigned int numOfSeats, char zone) {
     return *costPtr;
 }
 
-unsigned int logTransaction(char zone) {
+unsigned int logTransaction() {
     check_rc(pthread_mutex_lock(&transactionLock));
-    switch (zone) {
-        case 'A':
-            ++(*transactionsZoneAPtr);
-            break;
-        case 'B':
-            ++(*transactionsZoneBPtr);
-            break;
-        case 'C':
-            ++(*transactionsZoneCPtr);
-            break;
-        default:
-            break;
-    }
-    unsigned int transactionID = ++(*transactionsPtr);
+    unsigned int transactionID = ++(*transactionsSuccessPtr);
     check_rc(pthread_mutex_unlock(&transactionLock));
     return transactionID;
 }
@@ -450,6 +437,10 @@ bool bookSeats(unsigned int numOfSeats, unsigned int custID, char zone) {
         Clock();
         printf("Η κράτηση ματαιώθηκε γιατί δεν υπάρχουν αρκετές διαθέσιμες συνεχόμενες θέσεις\n\n");
         check_rc(pthread_mutex_unlock(&screenLock));
+
+        check_rc(pthread_mutex_lock(&transactionLock));
+        ++(*transactionsConsecutiveSeatsFailurePtr);
+        check_rc(pthread_mutex_unlock(&transactionLock));
     }
     check_rc(pthread_mutex_unlock(&seatsPlanLock));
     return result;
@@ -502,6 +493,11 @@ bool checkRemainingSeats() {
         check_rc(pthread_mutex_unlock(&screenLock));
     }
     check_rc(pthread_mutex_unlock(&seatsPlanLock));
+
+    check_rc(pthread_mutex_lock(&transactionLock));
+    ++(*transactionsSeatsFailurePtr);
+    check_rc(pthread_mutex_unlock(&transactionLock));
+
     return result;
 }
 
@@ -535,6 +531,11 @@ bool checkAvailableSeats(unsigned int choice, char zone) {
         }
     }
     check_rc(pthread_mutex_unlock(&seatsPlanLock));
+
+    check_rc(pthread_mutex_lock(&transactionLock));
+    ++(*transactionsSeatsFailurePtr);
+    check_rc(pthread_mutex_unlock(&transactionLock));
+
     return *resultPtr;
 }
 
@@ -546,6 +547,10 @@ bool POS(unsigned int numOfSeats, unsigned int custID, char zone) {
         Clock();
         printf("Η κράτηση ματαιώθηκε γιατί η συναλλαγή με την πιστωτική κάρτα δεν έγινε αποδεκτή\n\n");
         check_rc(pthread_mutex_unlock(&screenLock));
+
+        check_rc(pthread_mutex_lock(&transactionLock));
+        ++(*transactionsCardFailurePtr);
+        check_rc(pthread_mutex_unlock(&transactionLock));
     }
     return result;
 }
@@ -612,13 +617,20 @@ void printInfo() {
     printf("Δεσμευμένες Θέσεις: %d\n", totalSeats - (*remainingSeatsPtr));
     printf("Ελεύθερες Θέσεις: %d\n", (*remainingSeatsPtr));
     printf("\n");
-    printf("Συναλλαγές [Σύνολο]: %d\n", (*transactionsPtr));
-    printf("Συναλλαγές [Ζώνη A]: %d%% (%d)\n", (((*transactionsZoneAPtr * 100) / (*transactionsPtr))),
-           *transactionsZoneAPtr);
-    printf("Συναλλαγές [Ζώνη B]: %d%% (%d)\n", (((*transactionsZoneBPtr * 100) / (*transactionsPtr))),
-           *transactionsZoneBPtr);
-    printf("Συναλλαγές [Ζώνη C]: %d%% (%d)\n", (((*transactionsZoneCPtr * 100) / (*transactionsPtr))),
-           *transactionsZoneCPtr);
+
+    unsigned int totalTransactions =
+            *transactionsSuccessPtr + *transactionsCardFailurePtr + *transactionsConsecutiveSeatsFailurePtr +
+            *transactionsSeatsFailurePtr;
+    printf("Συναλλαγές [Σύνολο]: %d\n", totalTransactions);
+    printf("Συναλλαγές [Επιτυχής]: %d%% (%d)\n", (((*transactionsSuccessPtr * 100) / (totalTransactions))),
+           *transactionsSuccessPtr);
+    printf("Συναλλαγές [Ανεπιτυχής λόγω μη αποδοχής κάρτας]: %d%% (%d)\n",
+           (((*transactionsCardFailurePtr * 100) / (totalTransactions))), *transactionsCardFailurePtr);
+    printf("Συναλλαγές [Ανεπιτυχής λόγω μη συνεχόμενων θέσεων]: %d%% (%d)\n",
+           (((*transactionsConsecutiveSeatsFailurePtr * 100) / (totalTransactions))),
+           *transactionsConsecutiveSeatsFailurePtr);
+    printf("Συναλλαγές [Ανεπιτυχής λόγω μη ύπαρξης θέσεων γενικά]: %d%% (%d)\n",
+           (((*transactionsSeatsFailurePtr * 100) / (totalTransactions))), *transactionsSeatsFailurePtr);
     printf("Κέρδη: %d\u20AC\n", (*profitPtr));
     printf("\nΈξοδος..\n");
 }
