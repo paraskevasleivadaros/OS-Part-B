@@ -491,12 +491,13 @@ bool checkRemainingSeats() {
         Clock();
         printf("Η κράτηση ματαιώθηκε γιατί το θέατρο είναι γεμάτο\n\n");
         check_rc(pthread_mutex_unlock(&screenLock));
+
+        check_rc(pthread_mutex_lock(&transactionLock));
+        ++(*transactionsSeatsFailurePtr);
+        check_rc(pthread_mutex_unlock(&transactionLock));
     }
     check_rc(pthread_mutex_unlock(&seatsPlanLock));
 
-    check_rc(pthread_mutex_lock(&transactionLock));
-    ++(*transactionsSeatsFailurePtr);
-    check_rc(pthread_mutex_unlock(&transactionLock));
 
     return result;
 }
@@ -530,11 +531,13 @@ bool checkAvailableSeats(unsigned int choice, char zone) {
                 break;
         }
     }
-    check_rc(pthread_mutex_unlock(&seatsPlanLock));
 
-    check_rc(pthread_mutex_lock(&transactionLock));
-    ++(*transactionsSeatsFailurePtr);
-    check_rc(pthread_mutex_unlock(&transactionLock));
+    if (!*resultPtr) {
+        check_rc(pthread_mutex_lock(&transactionLock));
+        ++(*transactionsSeatsFailurePtr);
+        check_rc(pthread_mutex_unlock(&transactionLock));
+    }
+    check_rc(pthread_mutex_unlock(&seatsPlanLock));
 
     return *resultPtr;
 }
