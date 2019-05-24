@@ -498,7 +498,6 @@ bool checkRemainingSeats() {
     }
     check_rc(pthread_mutex_unlock(&seatsPlanLock));
 
-
     return result;
 }
 
