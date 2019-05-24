@@ -79,7 +79,7 @@ void printInfo();
 
 void *customer(void *x);
 
-bool checkAvailableSeats(unsigned int, char);
+bool checkConsecutiveAvailableSeats(unsigned int, char);
 
 bool POS(unsigned int, unsigned int, char);
 
@@ -195,7 +195,7 @@ void *customer(void *x) {
 
         sleep(sleepRandom(T_SEAT_LOW, T_SEAT_HIGH));
 
-        if (checkAvailableSeats(seats, zone)) {
+        if (checkConsecutiveAvailableSeats(seats, zone)) {
 
             if (bookSeats(seats, id, zone)) {
 
@@ -502,7 +502,7 @@ bool checkRemainingSeats() {
     return result;
 }
 
-bool checkAvailableSeats(unsigned int choice, char zone) {
+bool checkConsecutiveAvailableSeats(unsigned int choice, char zone) {
     check_rc(pthread_mutex_lock(&seatsPlanLock));
 
     // check if there are enough spaces left at the theater
